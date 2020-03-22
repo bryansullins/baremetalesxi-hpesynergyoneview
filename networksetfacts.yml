@@ -1,0 +1,18 @@
+---
+- hosts: localhost
+  gather_facts: false
+  vars_files:
+    - vars/creds.yml
+    #### This is for repeated-use variables for each Composer:
+    - vars/shared_vars.yml
+  vars:
+    #### Required:
+    - ansible_python_interpreter: python3
+  tasks:
+    - name: Gather facts about all Network Sets
+      oneview_network_set_facts:
+        hostname: "{{ ov_hostname }}" # <- Pulled from vars/shared_vars.yml
+        username: "USERNAMEWITHPROPERPERMS" # <- Hardcoded
+        password: "{{ VAULTPROTECTEDPASSWORD }}" # <- Pulled from vars/creds.yml 
+        api_version: "{{ ov_api_version }}" # <- Pulled from vars/shared_vars.yml
+      delegate_to: localhost

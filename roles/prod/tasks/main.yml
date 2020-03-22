@@ -1,0 +1,273 @@
+---
+- name: Creating server from server profile template with current PROD OS deployment for ESXi
+  oneview_server_profile:
+    hostname: "{{ ov_hostname }}" # <- Pulled from vars/shared_vars.yml
+    username: "SERVICEACCOUNTWITHPERMS"
+    password: "{{ VAULTEDPASSWORDVAR }}" # <- Pulled from vars/creds.yml
+    api_version: "{{ ov_api_version }}"
+    data:
+      name: "{{ esxi_hostname }}" # <- Pulled from Prompts
+      serverProfileTemplateName: "PROD_{{ cluster_name }}" # <- Pulled from Prompts
+      serverHardwareName: "{{ server_hardware }}" # <- Pulled from Prompts
+      osDeploymentSettings:
+        osDeploymentPlanName: "{{ os_deployment_plan }}" # <- Pulled from calling playbook.
+        osCustomAttributes:
+          - name: Hostname
+            value: "{{ esxi_hostname }}" # <- Pulled from Prompts
+          - name: DomainName
+            value: "{{ domain_name }}" # <- Pulled from vars/shared_vars.yml
+          - name: ManagementNIC.connectionid
+            value: 3
+          - name: ManagementNIC.NetworkUri
+            value: "{{ NIC_Network_Uri }}" # <- Pulled from share_vars.yml
+          - name: ManagementNIC2.connectionid
+            value: 4
+          - name: ManagementNIC2.NetworkUri
+            value: "{{ NIC2_Network_Uri }}" # <- Pulled from share_vars.yml
+          - name: SSH
+            value: enabled
+          - name: Password
+            value: "{{ VAULTEDPASSWORD }}" # <- Pulled from vars/creds.yml (Desired ESXi Host password).
+          - name: ManagementNIC.dns1
+            value: "{{ dns_1 }}" # <- Pulled from vars/shared_vars.yml
+          - name: ManagementNIC.dns2
+            value: "{{ dns_2 }}" # <- Pulled from vars/shared_vars.yml
+          - name: ManagementNIC.gateway
+            value: "{{ gate_way }}" # <- Pulled from vars/shared_vars.yml
+          - name: ManagementNIC.ipaddress
+            value: "{{ ip_address }}" # <- Pulled from Prompts
+          - name: ManagementNIC.dhcp
+            value: false
+          - name: ManagementNIC.netmask
+            value: "{{ net_mask }}" # <- Pulled from vars/shared_vars.yml
+          - name: ManagementNIC.constraint
+            value: userspecified
+          - name: ManagementNIC2.constraint
+            value: userspecified
+          - name: ManagementNIC.ipv4disable
+            value: false
+          - name: ManagementNIC.vlanid
+            value: "{{ vlan_id }}" # <- Pulled from vars/shared_vars.yml
+          - name: ManagementNIC2.vlanid
+            value: "{{ vlan_id }}" # <- Pulled from vars/shared_vars.yml
+          - name: ScratchLocation
+            value: "{{ scratch_location }}" # <- Pulled from calling playbook.
+    params: # Supported only in API version >= 600
+      force: True
+  delegate_to: localhost
+
+- name: Powering on the ESXi server . . .
+  oneview_server_hardware:
+    hostname: "{{ ov_hostname }}"
+    username: "AUTOMATIONSERVICEACCT"
+    password: "{{ SERVICEACCTPASSWORD }}"
+    api_version: "{{ ov_api_version}}"
+    state: power_state_set
+    data:
+      name: "{{ serverhardware }}"
+      powerStateData:
+        powerState: "On"
+        powerControl: "MomentaryPress"
+  delegate_to: localhost
+
+- name: Waiting for the ESXi host to respond . . .
+  wait_for: 
+    delay: 120
+    sleep: 3
+    host: "{{ ip_address }}"
+    timeout: 270
+  delegate_to: localhost
+
+####
+#### vCenter and ESXi Host Configuration 
+- name: Placing host into maintenance mode for safety sake before scratch configuration reboot . . .
+  vmware_maintenancemode:
+    hostname: "{{ esxi_hostname }}.yourdomain.here"
+    username: "root"
+    password: "{{ esxistandardpassword }}"
+    esxi_hostname: "{{ esxi_hostname }}.yourdomain.here"
+    timeout: 3600
+    state: present
+    validate_certs: false
+  delegate_to: localhost
+
+- name: Rebooting ESXi Host for scratch partition setting . . .
+  vmware_host_powerstate:
+    hostname: "{{ esxi_hostname }}.yourdomain.here"
+    username: "root"
+    password: "{{ esxistandardpassword }}"
+    esxi_hostname: "{{ esxi_hostname }}.yourdomain.here"
+    validate_certs: false
+    state: reboot-host
+  delegate_to: localhost
+
+- name: Waiting for the ESXi host to respond once more. When the host responds, will finalize ESXi configuration items . . .
+  wait_for: 
+    delay: 120
+    sleep: 3
+    host: "{{ ip_address }}"
+    timeout: 130
+  delegate_to: localhost
+
+- name: Adding ESXi host "{{ esxi_hostname }}.yourdomain.here" to vCenter . . .
+  vmware_host:
+    hostname: "{{ vcenter_hostname }}"
+    username: "VCENTERSERVICEACCT"
+    password: "{{ vmwaresvcacctpassword }}"
+    datacenter_name: "{{ datacenter_name }}"
+    cluster_name: "{{ cluster_name }}"
+    esxi_hostname: "{{ esxi_hostname }}.yourdomain.here"
+    esxi_username: "root"
+    esxi_password: "{{ esxistandardpassword }}"
+    state: present
+    validate_certs: false
+  delegate_to: localhost
+
+- name: Adding ESXi license and assigning to ESXi Host "{{ esxi_hostname }}.yourdomain.here" . . .
+  vcenter_license:
+    hostname: "{{ vcenter_hostname }}"
+    username: "VCENTERSERVICEACCT"
+    password: "{{ vmwaresvcacctpassword }}"
+    esxi_hostname: "{{ esxi_hostname }}.yourdomain.here"
+    license: "{{ esxi_license }}"
+    state: present
+    validate_certs: false
+  delegate_to: localhost
+
+- name: Changing Advanced Settings . . . Security Warning . . . Core Dump Warning Disable . . . Set Syslog Server
+  vmware_host_config_manager:
+    hostname: "{{ vcenter_hostname }}"
+    username: "VCENTERSERVICEACCT"
+    password: "{{ vmwaresvcacctpassword }}"
+    esxi_hostname: "{{ esxi_hostname }}.yourdomain.here"
+    options:
+      'UserVars.SuppressCoredumpWarning': '1'
+      'Syslog.global.logHost': '{{ sysloghost }}'
+    validate_certs: false
+  delegate_to: localhost
+
+- name: Setting the Power Management Policy of a host system to high-performance
+  vmware_host_powermgmt_policy:
+    hostname: "{{ vcenter_hostname }}"
+    username: "VCENTERSERVICEACCT"
+    password: "{{ vmwaresvcacctpassword }}"
+    esxi_hostname: "{{ esxi_hostname }}.yourdomain.here"
+    policy: high-performance
+    validate_certs: false
+  delegate_to: localhost
+
+- name: Adding vmkernel Portgroup with all settings defined
+  vmware_portgroup:
+    hostname: "{{ vcenter_hostname }}"
+    username: "VCENTERSERVICEACCT"
+    password: "{{ vmwaresvcacctpassword }}"
+    esxi_hostname: "{{ esxi_hostname }}.yourdomain.here"
+    switch: "vSwitch1"
+    portgroup: "vMotion"
+    vlan_id: "{{ vlan_id }}"
+    validate_certs: false
+  delegate_to: localhost
+
+- name: Adding vMotion vmkernel port with default TCP/IP stack . . .
+  vmware_vmkernel:
+    hostname: "{{ vcenter_hostname }}"
+    username: "VCENTERSERVICEACCT"
+    password: "{{ vmwaresvcacctpassword }}"
+    esxi_hostname: "{{ esxi_hostname }}.yourdomain.here"
+    vswitch_name: "vSwitch1"
+    portgroup_name: "vMotion"
+    mtu: 9000
+    network:
+      type: "static"
+      ip_address: "{{ vmotionip }}"
+      subnet_mask: "{{ net_mask }}"
+      tcpip_stack: default
+    state: present
+    enable_vmotion: true
+    validate_certs: false
+  delegate_to: localhost
+
+- name: Configuring NTP servers for host "{{ esxi_hostname }}.yourdomain.here" . . .
+  vmware_host_ntp:
+    hostname: "{{ vcenter_hostname }}"
+    username: "VCENTERSERVICEACCT"
+    password: "{{ vmwaresvcacctpassword }}"
+    esxi_hostname: "{{ esxi_hostname }}.yourdomain.here"
+    ntp_servers:
+      - "YOURNTPSERVER1"
+      - "YOURNTPSERVER2"
+    validate_certs: false
+  delegate_to: localhost
+
+- name: Starting NTP Service and set to start at boot.
+  vmware_host_service_manager:
+    hostname: '{{ vcenter_hostname }}'
+    username: "VCENTERSERVICEACCT"
+    password: "{{ vmwaresvcacctpassword }}"
+    esxi_hostname: "{{ esxi_hostname }}.yourdomain.here"
+    validate_certs: false
+    service_name: ntpd
+    service_policy: on
+    state: start
+  delegate_to: localhost
+
+- name: Restarting Syslog Service since settings have changed and set to start at boot . . .
+  vmware_host_service_manager:
+    hostname: '{{ vcenter_hostname }}'
+    username: "VCENTERSERVICEACCT"
+    password: "{{ vmwaresvcacctpassword }}"
+    esxi_hostname: "{{ esxi_hostname }}.yourdomain.here"
+    validate_certs: false
+    service_name: vmsyslogd
+    service_policy: on
+    state: restart
+  delegate_to: localhost
+
+- name: Adding host "{{ esxi_hostname }}.yourdomain.here" to VDS . . .
+  vmware_dvs_host:
+    hostname: "{{ vcenter_hostname }}"
+    username: "VCENTERSERVICEACCT"
+    password: "{{ vmwaresvcacctpassword }}"
+    esxi_hostname: "{{ esxi_hostname }}.yourdomain.here"
+    switch_name: "{{ vcenter_switch_name }}"
+    vmnics:
+        - vmnic2
+        - vmnic3
+    state: present
+    validate_certs: False
+  delegate_to: localhost
+
+- name: Stopping ESXi Shell Service and setting to disable at boot . . .
+  vmware_host_service_manager:
+    hostname: '{{ vcenter_hostname }}'
+    username: "VCENTERSERVICEACCT"
+    password: "{{ vmwaresvcacctpassword }}"
+    esxi_hostname: "{{ esxi_hostname }}.yourdomain.here"
+    validate_certs: false
+    service_name: TSM
+    service_policy: off
+    state: stop
+  delegate_to: localhost
+
+- name: Stopping SSH Service and setting to disable at boot.
+  vmware_host_service_manager:
+    hostname: '{{ vcenter_hostname }}'
+    username: "VCENTERSERVICEACCT"
+    password: "{{ vmwaresvcacctpassword }}"
+    esxi_hostname: "{{ esxi_hostname }}.yourdomain.here"
+    validate_certs: false
+    service_name: TSM-SSH
+    service_policy: off
+    state: stop
+  delegate_to: localhost
+
+- name: Taking host out of maintenance mode. Last task! . . .
+  vmware_maintenancemode:
+    hostname: '{{ vcenter_hostname }}'
+    username: "VCENTERSERVICEACCT"
+    password: "{{ vmwaresvcacctpassword }}"
+    esxi_hostname: "{{ esxi_hostname }}.yourdomain.here"
+    timeout: 3600
+    state: absent
+    validate_certs: false
+  delegate_to: localhost

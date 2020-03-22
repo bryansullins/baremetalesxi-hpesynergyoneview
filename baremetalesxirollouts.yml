@@ -1,0 +1,43 @@
+---
+- hosts: localhost
+  gather_facts: false
+  vars_files:
+    - vars/creds.yml
+    #### This is for repeated-use variables for each Composer:
+    - vars/shared_vars.yml
+  vars:
+    #### Required:
+    - ansible_python_interpreter: python3
+    #### Change these to the latest Deployment Plan and role for the cluster:
+    #### If you are testing a dev version of the Server Profile Template, it is recommended to copy this file and rename it, then change the os_deployment_plan to the latest, and change the esxi_role to "dev":
+    - os_deployment_plan: "OSDEPLOYMENTPLANNAME" # <- DEP/PROD/DEV OS Deployment Plans.
+    - esxi_role: "prod"
+    #### These  are specific to each LVX/vCenter/Cluster - make sure these are correct!
+    - vcenter_hostname: "VCENTERHOSTNAME"
+    - vcenter_username: "VCENTERSERVICEACCOUNT"
+    - datacenter_name: "DATACENTERNAME"
+    - vcenter_switch_name: "vDSNAME"
+    - esxi_license: "ESXiLICENSEKEY" # <- ANSIBLE VAULT THIS!
+    - ScratchLocation: "/vmfs/volumes/UUIDHERE" # <- HAVE A BACKUP PLAN 
+    - sysloghost: "SYSLOGHOSTURL"
+  vars_prompt:
+    - name: "esxi_hostname"
+      prompt: "Enter the ESXi Hostname"
+      private: no
+    - name: "ip_address"
+      prompt: "Enter the Management IP Address for the ESXi Host"
+      private: no
+    - name: "vmotion_ip"
+      prompt: "Enter the vMotion IP Address for the ESXi Host"
+      private: no
+    - name: "server_hardware"
+      prompt: "Enter the Blade by Serial and bay number. Example: 'MXQ917069G, bay 1'"
+      private: no
+    - name: "cluster_name"
+      prompt: "Enter the vCenter Cluster name"
+      private: no
+
+  tasks:
+  - name: Include tasks from the common role . . .
+    include_role:
+      name: "{{ esxi_role }}"

@@ -1,0 +1,11 @@
+ov_hostname: "ONEVIEWHOSTNAMEHERE"
+ov_username: "ONEVIEWUSERNAMEHERE"
+ov_api_version: 900 ## Current version as of  2/5/2020
+domain_name: "DOMAINNAMEHERE"
+NIC_Network_Uri: "NICNetworkUri" ## <- Management Network for ESXi - Pulled from networksetfacts.yml
+NIC2_Network_Uri: "NIC2NetworkUri" ## <- Management Network for ESXi (Redundant NIC) - Pulled from networksetfacts.yml
+vlan_id: "VLANIDFORESXIMGMTGOESHERE" ## <- Will get configured on the vSwitch
+net_mask: "ESXIHOSTNETMASK"
+dns_1: "ESXiHOSTDNS1"
+dns_2: "ESXiHOSTDNS2"
+gate_way: "ESXiHOSTGATEWAY"
