@@ -18,7 +18,7 @@
     - datacenter_name: "DATACENTERNAME"
     - vcenter_switch_name: "vDSNAME"
     - esxi_license: "ESXiLICENSEKEY" # <- ANSIBLE VAULT THIS!
-    - ScratchLocation: "/vmfs/volumes/UUIDHERE" # <- HAVE A BACKUP PLAN 
+    - ScratchLocation: "/vmfs/volumes/UUIDHERE" # <- Comment this out everywhere if this isn't in your OneView anywhere. 
     - sysloghost: "SYSLOGHOSTURL"
   vars_prompt:
     - name: "esxi_hostname"
@@ -31,7 +31,7 @@
       prompt: "Enter the vMotion IP Address for the ESXi Host"
       private: no
     - name: "server_hardware"
-      prompt: "Enter the Blade by Serial and bay number. Example: 'MXQ917069G, bay 1'"
+      prompt: "Enter the Blade location by Frame Name and bay number. Example: 'MXQ917069G, bay 1'"
       private: no
     - name: "cluster_name"
       prompt: "Enter the vCenter Cluster name"

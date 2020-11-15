@@ -32,6 +32,12 @@
     six==1.13.0    
     urllib3==1.25.7     
 
+## Playbook details
+
+- Includes the playbook baremetalesxirollouts.yml, which includes customized code for ESXi Baremetal rollouts using Synergy with [HPE's OS/Image Streamer] (https://support.hpe.com/hpesc/public/docDisplay?docId=emr_na-a00003508en_us)
+- networksetfacts.yml - included here for getting the network facts needed to include in the main bare metal playbook (as above)
+- roles are divided up by DEV (development), PROD (Production), and DEP (Deprecated). Only the PROD role is populated.
+
 ## Usage example
 
 I have made comments throughout for guidance through the playbook and repo. As long as you know the HPE Oneview process with OS/Image streamer, you should be able to fill in the blanks. The same goes for anything related to the VMware plays (which, in my humble opinion, is the easy part).
